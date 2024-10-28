@@ -1,0 +1,6 @@
+openpyxl
+customtkinter
+pillow
+pandas
+rapidfuzz
+multiprocess
