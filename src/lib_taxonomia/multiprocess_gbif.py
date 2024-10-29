@@ -8,6 +8,7 @@ def rev_taxonomia(argumentos):
     from rapidfuzz import fuzz
     import aiohttp
     import asyncio
+    import pandas as pd
 
     def probar_conexion(max_intentos=10, intervalo=5):
         tiempo_inicio = datetime.datetime.now()
@@ -42,7 +43,6 @@ def rev_taxonomia(argumentos):
             if nombre:
                 nombre_lower = nombre.lower()
                 
-                # Aplicar penalización al calcular cada similitud si el taxón no coincide
                 similitudes = [
                     (
                         fuzz.ratio(nombre_usuario.lower(), nombre_lower) * (1 if taxon_usuario == taxonomia else factor_castigo),
@@ -51,8 +51,6 @@ def rev_taxonomia(argumentos):
                     for taxon_usuario, nombre_usuario in dict_taxonomia.items()
                     if isinstance(nombre_usuario, str)
                 ]
-
-                # Seleccionar la mejor coincidencia (con penalización aplicada)
                 correlacion_max, taxon_relacion = max(similitudes, default=(0, "error"))
 
                 dict_evaluacion[taxonomia] = {
@@ -81,7 +79,7 @@ def rev_taxonomia(argumentos):
         }
         list_alternativas = []
 
-        async with aiohttp.ClientSession() as session:  # Abre una sesión para cada llamada
+        async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
                     species_busqueda = await response.json()
@@ -109,14 +107,13 @@ def rev_taxonomia(argumentos):
     def calificar_alternativa(alternativa, dict_taxonomia):
 
         taxones_no_nulos = [
-            taxon for taxon, valor in dict_taxonomia.items() if not pd.isna(valor)
+            taxon for taxon, valor in dict_taxonomia.items() if (not pd.isna(valor) and valor !="")
         ]
         taxon_menor = taxones_no_nulos[0] if taxones_no_nulos else None
         taxon_mayor = taxones_no_nulos[-1] if taxones_no_nulos else None
-
         dict_pesos = {
             taxon: (3 if taxon in {taxon_menor, taxon_mayor} else 1)
-            for taxon in dict_taxonomia
+            for taxon in taxones_no_nulos
         }
 
         suma_alternativa = sum(
@@ -128,6 +125,8 @@ def rev_taxonomia(argumentos):
         )
 
         suma_alternativa /= sum(dict_pesos.values())
+        print('---------------Evaluacion--------------------')
+        print(dict_taxonomia, alternativa ,suma_alternativa)
         return suma_alternativa
 
     def seleccionar_mejor_alternativa(dict_result, dict_taxonomia):

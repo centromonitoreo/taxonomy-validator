@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+import requests
 from multiprocess import Pool
 import multiprocessing
 from lib_taxonomia.limpieza import limpiar_data, ajustar_genero
@@ -8,6 +8,8 @@ from lib_taxonomia.multiprocess_gbif import rev_taxonomia
 import os
 import subprocess
 import tkinter as tk
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 def procesar_taxonomia_en_paralelo(biotico):
 
@@ -63,32 +65,38 @@ def preparar_biotico(df_genero_limpio):
 def procesar_resultados(biotico, resultados):
     for dict_result_fila in resultados:
         for _, resultado in dict_result_fila.items():
-            dict_resultado = {
-                taxonomia: (nombre if not pd.isna(nombre) else "Sin Dato") 
-                for taxonomia, nombre in resultado["datos_iniciales"].items()
-            }
-            filtro = (
-                (biotico["FAMILIA"] == dict_resultado["family"]) &
-                (biotico["GENERO"] == dict_resultado["genus"]) &
-                (biotico["ESPECIE"] == dict_resultado["species"])
-            )
             
-            columnas_a_asignar = {
-                "CLASE_SU": resultado["alternativa"].get("class", np.nan),
-                "ORDEN_SU": resultado["alternativa"].get("order", np.nan),
-                "FAMILIA_SU": resultado["alternativa"].get("family", np.nan),
-                "GENERO_SU": resultado["alternativa"].get("genus", np.nan),
-                "ESPECIE_SU": resultado["alternativa"].get("species", np.nan),
-                "CORREL": resultado["coor"]
-            }
-            
-            for columna, valor in columnas_a_asignar.items():
-                biotico.loc[filtro, columna] = valor
+            try:
+                dict_resultado = {
+                    taxonomia: (nombre if not pd.isna(nombre) else "Sin Dato") 
+                    for taxonomia, nombre in resultado["datos_iniciales"].items()
+                }
+                filtro = (
+                    (biotico["FAMILIA"] == dict_resultado["family"]) &
+                    (biotico["GENERO"] == dict_resultado["genus"]) &
+                    (biotico["ESPECIE"] == dict_resultado["species"])
+                )
+                
+                columnas_a_asignar = {
+                    "CLASE_SU": resultado["alternativa"].get("class", np.nan),
+                    "ORDEN_SU": resultado["alternativa"].get("order", np.nan),
+                    "FAMILIA_SU": resultado["alternativa"].get("family", np.nan),
+                    "GENERO_SU": resultado["alternativa"].get("genus", np.nan),
+                    "ESPECIE_SU": resultado["alternativa"].get("species", np.nan),
+                    "CORREL": resultado["coor"]
+                }
+                
+                for columna, valor in columnas_a_asignar.items():
+                    biotico.loc[filtro, columna] = valor
+            except:
+               # pass
+                print(resultado)
 
     return biotico.replace({"Sin Dato": np.nan})
 
 def guardar_y_abrir_excel(biotico, dir_salida, dir_file, sheet_name):
     df_datos_original = pd.read_excel(dir_file, sheet_name=sheet_name)
+   # biotico[['CLASE_SU', 'ORDEN_SU', 'FAMILIA_SU', 'GENERO_SU', 'ESPECIE_SU']] = biotico[['CLASE_SU', 'ORDEN_SU', 'FAMILIA_SU', 'GENERO_SU', 'ESPECIE_SU']].astype(str)
     df_datos_original.update(biotico)
     output_path = os.path.join(dir_salida, "Taxonomia.xlsx")
     
@@ -108,9 +116,8 @@ def revisar_taxonomia(dir_file, df_data, sheet_name):
     dir_salida = os.path.dirname(dir_file)
     df_genero_limpio = procesar_datos_iniciales(df_data)
     biotico, columnas_totales = preparar_biotico(df_genero_limpio)
-
-    df_unicos = biotico[columnas_totales].drop_duplicates().reset_index(drop=True)
     
+    df_unicos = biotico[columnas_totales].drop_duplicates().reset_index(drop=True)
     resultados = procesar_taxonomia_en_paralelo(df_unicos)
     biotico = biotico[columnas_totales]
     biotico = procesar_resultados(biotico, resultados)

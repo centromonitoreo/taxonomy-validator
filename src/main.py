@@ -96,7 +96,6 @@ class TaxoScanApp:
             self.frame_combo_shee_name,
             values=nombres_pestanas,
             width=200,
-            command=self._change_sheet
         )
         self.combo_sheet_name.grid(column=1, row=0, padx=10)
         
@@ -120,20 +119,41 @@ class TaxoScanApp:
         )
         self.mensaje_campos.pack(padx=10, pady=(10, 0), anchor='w')
 
-        self.combo_clase = customtkinter.CTkComboBox(self.frame_columns, values=columns)
-        self.combo_clase.grid(column=1, row=0, padx=45, pady=5)
+        columnas_por_defecto = {
+            "CLASE": None,
+            "ORDEN": None,
+            "FAMILIA": None,
+            "GENERO": None,
+            "ESPECIE": None,
+        }
 
-        self.combo_orden = customtkinter.CTkComboBox(self.frame_columns, values=columns)
-        self.combo_orden.grid(column=1, row=1, padx=45, pady=5)
+        # Guardar los ComboBoxes como atributos de la clase
+        self.combo_clase = None
+        self.combo_orden = None
+        self.combo_family = None
+        self.combo_genero = None
+        self.combo_especie = None
 
-        self.combo_family = customtkinter.CTkComboBox(self.frame_columns, values=columns)
-        self.combo_family.grid(column=1, row=2, padx=45, pady=5)
+        for i, (label_text, _) in enumerate(columnas_por_defecto.items()):
+            customtkinter.CTkLabel(self.frame_columns, text=f'{label_text}:', anchor='w').grid(column=0, row=i, sticky='w')
 
-        self.combo_genero = customtkinter.CTkComboBox(self.frame_columns, values=columns)
-        self.combo_genero.grid(column=1, row=3, padx=45, pady=5)
+            combo_box = customtkinter.CTkComboBox(self.frame_columns, values=columns)
+            if label_text in columns:
+                combo_box.set(label_text)  # Establecer valor por defecto si está presente
 
-        self.combo_especie = customtkinter.CTkComboBox(self.frame_columns, values=columns)
-        self.combo_especie.grid(column=1, row=4, padx=45, pady=5)
+            combo_box.grid(column=1, row=i, padx=45, pady=5)
+
+            # Asignar el ComboBox a un atributo de la clase
+            if label_text == "CLASE":
+                self.combo_clase = combo_box
+            elif label_text == "ORDEN":
+                self.combo_orden = combo_box
+            elif label_text == "FAMILIA":
+                self.combo_family = combo_box
+            elif label_text == "GENERO":
+                self.combo_genero = combo_box
+            elif label_text == "ESPECIE":
+                self.combo_especie = combo_box
 
         self.ejecutar_validador = customtkinter.CTkButton(self.root, text='Ejecutar Validador', command=self._validador)
         self.frame_columns.pack(fill='x', padx=10, pady=(2, 10))
@@ -147,11 +167,16 @@ class TaxoScanApp:
             self.combo_genero.get(): 'GENERO',
             self.combo_especie.get(): 'ESPECIE'
         }
-        self.df_datos = self.df_datos.rename(columns=dict_rename)
-        messagebox.showinfo("Alerta", "¡Asegurar que los archivos Excel se encuentran cerrados!")
-        t = threading.Thread(target=revisar_taxonomia, args=(self.dir_file, self.df_datos, self.combo_sheet_name.get()))
-        t.start()
-        self._schedule_check(t)
+        
+        # Asegúrate de que 'dict_rename' tenga valores válidos
+        if all(value in self.df_datos.columns for value in dict_rename.keys()):
+            self.df_datos = self.df_datos.rename(columns=dict_rename)
+            messagebox.showinfo("Alerta", "¡Asegurar que los archivos Excel se encuentran cerrados!")
+            t = threading.Thread(target=revisar_taxonomia, args=(self.dir_file, self.df_datos, self.combo_sheet_name.get()))
+            t.start()
+            self._schedule_check(t)
+        else:
+            messagebox.showerror("Error", "Una o más columnas seleccionadas no están disponibles en los datos.")
 
     def _schedule_check(self, t):
         if not t.is_alive():
